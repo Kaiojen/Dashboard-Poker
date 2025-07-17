@@ -332,4 +332,21 @@ class PokerDatabase:
             print(f"Erro ao deletar torneio: {e}")
             return False
 
+    def update_torneio(self, id_torneio: int, data_torneio: str, id_conta: int, id_tipo_torneio: int, buy_in: float, ganho_total: float) -> bool:
+        """Atualiza os dados de um torneio existente."""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE torneios
+                SET data_torneio = ?, id_conta = ?, id_tipo_torneio = ?, buy_in = ?, ganho_total = ?
+                WHERE id_torneio = ?
+            ''', (data_torneio, id_conta, id_tipo_torneio, buy_in, ganho_total, id_torneio))
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"Erro ao atualizar torneio: {e}")
+            return False
+
 
