@@ -508,8 +508,8 @@ if torneios:
     
     # Preparar dados para exibição
     df_display = pd.DataFrame(torneios)
-    df_display = df_display[['id_torneio', 'data_torneio', 'nome_conta', 'nome_tipo', 'buy_in', 'ganho_total', 'lucro_liquido', 'roi']]
-    df_display.columns = ['ID', 'Data', 'Conta', 'Tipo', 'Buy-in (R$)', 'Ganho (R$)', 'Lucro (R$)', 'ROI (%)']
+    df_display = df_display[['data_torneio', 'nome_conta', 'nome_tipo', 'buy_in', 'ganho_total', 'lucro_liquido', 'roi']]
+    df_display.columns = ['Data', 'Conta', 'Tipo', 'Buy-in (R$)', 'Ganho (R$)', 'Lucro (R$)', 'ROI (%)']
     
     # Formatar valores
     df_display['Buy-in (R$)'] = df_display['Buy-in (R$)'].apply(lambda x: f"R$ {x:.2f}")
@@ -517,66 +517,127 @@ if torneios:
     df_display['Lucro (R$)'] = df_display['Lucro (R$)'].apply(lambda x: f"R$ {x:.2f}")
     df_display['ROI (%)'] = df_display['ROI (%)'].apply(lambda x: f"{x:.1f}%")
     
-    # Mostrar apenas os 20 mais recentes
-    df_display = df_display.head(20)
+    # Mostrar apenas os 20 mais recentes com dataframe bonito
+    st.dataframe(
+        df_display.head(20),
+        use_container_width=True,
+        hide_index=True
+    )
     
-    # Adicionar colunas de ação
-    for idx, row in df_display.iterrows():
-        col1, col2, col3 = st.columns([8, 1, 1])
+    # Seção de ações rápidas para torneios
+    st.markdown("### ⚡ Ações Rápidas")
+    
+    # Dropdown para seleção de torneio
+    torneios_opcoes = []
+    for i, torneio in enumerate(torneios[:20]):  # Apenas os 20 mais recentes
+        opcao = f"{torneio['data_torneio']} - {torneio['nome_conta']} - {torneio['nome_tipo']} - R$ {torneio['buy_in']:.2f}"
+        torneios_opcoes.append(opcao)
+    
+    if torneios_opcoes:
+        col1, col2, col3 = st.columns([6, 2, 2])
+        
         with col1:
-            st.write(f"{row['Data']} | {row['Conta']} | {row['Tipo']} | {row['Buy-in (R$)']} | {row['Ganho (R$)']} | {row['Lucro (R$)']} | {row['ROI (%)']}")
+            torneio_selecionado = st.selectbox(
+                "Selecione um torneio para editar ou excluir:",
+                torneios_opcoes,
+                key="torneio_acao"
+            )
+        
         with col2:
-            if st.button("🗑️", key=f"delete_{row['ID']}"):
-                sucesso_exclusao = db.delete_torneio(row['ID'])
+            if st.button("✏️ Editar", use_container_width=True):
+                idx_selecionado = torneios_opcoes.index(torneio_selecionado)
+                torneio_dados = torneios[idx_selecionado]
+                st.session_state['edit_id'] = torneio_dados['id_torneio']
+                st.session_state['edit_data'] = torneio_dados['data_torneio']
+                st.session_state['edit_conta'] = torneio_dados['nome_conta']
+                st.session_state['edit_tipo'] = torneio_dados['nome_tipo']
+                st.session_state['edit_buyin'] = torneio_dados['buy_in']
+                st.session_state['edit_ganho'] = torneio_dados['ganho_total']
+                st.rerun()
+        
+        with col3:
+            if st.button("🗑️ Excluir", use_container_width=True):
+                idx_selecionado = torneios_opcoes.index(torneio_selecionado)
+                torneio_dados = torneios[idx_selecionado]
+                sucesso_exclusao = db.delete_torneio(torneio_dados['id_torneio'])
                 if sucesso_exclusao:
                     st.success("✅ Torneio excluído com sucesso!")
                     st.rerun()
                 else:
                     st.error("❌ Erro ao excluir torneio!")
-        with col3:
-            if st.button("✏️", key=f"edit_{row['ID']}"):
-                st.session_state['edit_id'] = row['ID']
-                st.session_state['edit_data'] = row['Data']
-                st.session_state['edit_conta'] = row['Conta']
-                st.session_state['edit_tipo'] = row['Tipo']
-                st.session_state['edit_buyin'] = float(row['Buy-in (R$)'].replace('R$','').replace(',','.'))
-                st.session_state['edit_ganho'] = float(row['Ganho (R$)'].replace('R$','').replace(',','.'))
-                st.experimental_rerun()
     
-    # Formulário de edição
+    # Formulário de edição (quando um torneio é selecionado para edição)
     if 'edit_id' in st.session_state:
         st.markdown("### ✏️ Editar Torneio")
+        
         with st.form("editar_torneio_form"):
-            data_edit = st.date_input("Data do Torneio", value=pd.to_datetime(st.session_state['edit_data']))
-            conta_edit = st.text_input("Conta", value=st.session_state['edit_conta'])
-            tipo_edit = st.text_input("Tipo", value=st.session_state['edit_tipo'])
-            buyin_edit = st.number_input("Buy-in (R$)", min_value=0.0, value=st.session_state['edit_buyin'], step=0.01)
-            ganho_edit = st.number_input("Ganho (R$)", min_value=0.0, value=st.session_state['edit_ganho'], step=0.01)
-            submitted_edit = st.form_submit_button("Salvar Alterações")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                data_edit = st.date_input(
+                    "Data do Torneio", 
+                    value=pd.to_datetime(st.session_state['edit_data']).date()
+                )
+                
+                conta_edit = st.selectbox(
+                    "Conta",
+                    options=[c["nome"] for c in contas],
+                    index=[c["nome"] for c in contas].index(st.session_state['edit_conta'])
+                )
+                
+                tipo_edit = st.selectbox(
+                    "Tipo de Torneio",
+                    options=[t["nome"] for t in tipos_torneio],
+                    index=[t["nome"] for t in tipos_torneio].index(st.session_state['edit_tipo'])
+                )
+            
+            with col2:
+                buyin_edit = st.number_input(
+                    "Buy-in (R$)", 
+                    min_value=0.0, 
+                    value=float(st.session_state['edit_buyin']), 
+                    step=0.01
+                )
+                
+                ganho_edit = st.number_input(
+                    "Ganho Total (R$)", 
+                    min_value=0.0, 
+                    value=float(st.session_state['edit_ganho']), 
+                    step=0.01
+                )
+            
+            col_submit1, col_submit2 = st.columns(2)
+            
+            with col_submit1:
+                submitted_edit = st.form_submit_button("💾 Salvar Alterações", use_container_width=True)
+            
+            with col_submit2:
+                cancelar_edit = st.form_submit_button("❌ Cancelar", use_container_width=True)
+            
             if submitted_edit:
-                # Atualizar no banco (você pode criar um método update_torneio no db)
-                id_conta = next((c['id'] for c in contas if c['nome'] == conta_edit), None)
-                id_tipo = next((t['id'] for t in tipos_torneio if t['nome'] == tipo_edit), None)
-                if id_conta and id_tipo:
-                    sucesso_update = db.update_torneio(
-                        st.session_state['edit_id'],
-                        data_edit.strftime("%Y-%m-%d"),
-                        id_conta,
-                        id_tipo,
-                        buyin_edit,
-                        ganho_edit
-                    )
-                    if sucesso_update:
-                        st.success("✅ Torneio atualizado com sucesso!")
-                        del st.session_state['edit_id']
-                        st.rerun()
-                    else:
-                        st.error("❌ Erro ao atualizar torneio!")
+                # Encontrar IDs das seleções
+                id_conta = next(c["id"] for c in contas if c["nome"] == conta_edit)
+                id_tipo = next(t["id"] for t in tipos_torneio if t["nome"] == tipo_edit)
+                
+                sucesso_update = db.update_torneio(
+                    st.session_state['edit_id'],
+                    data_edit.strftime("%Y-%m-%d"),
+                    id_conta,
+                    id_tipo,
+                    buyin_edit,
+                    ganho_edit
+                )
+                
+                if sucesso_update:
+                    st.success("✅ Torneio atualizado com sucesso!")
+                    del st.session_state['edit_id']
+                    st.rerun()
                 else:
-                    st.error("Conta ou tipo de torneio inválido!")
-        if st.button("Cancelar Edição"):
-            del st.session_state['edit_id']
-            st.rerun()
+                    st.error("❌ Erro ao atualizar torneio!")
+            
+            if cancelar_edit:
+                del st.session_state['edit_id']
+                st.rerun()
 
 # Seção de estatísticas avançadas
 if torneios:
