@@ -608,39 +608,25 @@ if torneios:
     else:
         df_display = df_display.head(20)
     
-    # Aplicar cores baseadas no lucro para melhor visualização
-    def colorir_lucro(val):
-        if 'R$' in str(val):
-            valor_str = str(val).replace('R$', '').replace(',', '.').strip()
+    # Aplicar cores consistentes baseadas no lucro
+    def aplicar_cores(val):
+        if 'R$' in str(val) or '%' in str(val):
+            # Extrair valor numérico
+            valor_str = str(val).replace('R$', '').replace('%', '').replace(',', '.').strip()
             try:
                 valor = float(valor_str)
                 if valor > 0:
-                    return 'background-color: #d1f2eb; color: #0c6b40'  # Verde mais suave
+                    return 'background-color: #e8f5e8; color: #2d5a2d; font-weight: bold'  # Verde consistente
                 elif valor < 0:
-                    return 'background-color: #fadbd8; color: #943126'  # Vermelho mais suave
+                    return 'background-color: #ffeaea; color: #a94442; font-weight: bold'  # Vermelho consistente
             except ValueError:
                 pass
-        return ''
-    
-    def colorir_roi(val):
-        if '%' in str(val):
-            valor_str = str(val).replace('%', '').strip()
-            try:
-                valor = float(valor_str)
-                if valor > 0:
-                    return 'background-color: #d1f2eb; color: #0c6b40'  # Verde mais suave
-                elif valor < 0:
-                    return 'background-color: #fadbd8; color: #943126'  # Vermelho mais suave
-            except ValueError:
-                pass
-        return ''
+        return 'color: #333'  # Cor padrão para valores neutros
     
     # Aplicar estilos apenas se há dados
     if not df_display.empty:
         styled_df = df_display.style.applymap(
-            colorir_lucro, subset=['Lucro (R$)']
-        ).applymap(
-            colorir_roi, subset=['ROI (%)']
+            aplicar_cores, subset=['Lucro (R$)', 'ROI (%)']
         )
     else:
         styled_df = df_display
