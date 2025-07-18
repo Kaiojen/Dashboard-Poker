@@ -710,9 +710,9 @@ if torneios:
                         st.error("❌ Erro ao excluir torneio!")
             
             with col_nao:
-                                 if st.button("❌ Cancelar", use_container_width=True):
-                     del st.session_state['confirmar_exclusao']
-                     st.rerun()
+                if st.button("❌ Cancelar", use_container_width=True):
+                    del st.session_state['confirmar_exclusao']
+                    st.rerun()
     
     with tab2:
         st.markdown("**Selecione múltiplos torneios para ações em lote:**")
