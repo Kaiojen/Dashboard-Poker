@@ -398,6 +398,71 @@ else:
     # Métricas principais
     st.markdown("## 📈 Indicadores Principais")
     
+    # Comparação temporal (Este mês vs mês passado)
+    from datetime import datetime, timedelta
+    hoje = datetime.now()
+    primeiro_dia_mes_atual = hoje.replace(day=1)
+    primeiro_dia_mes_passado = (primeiro_dia_mes_atual - timedelta(days=1)).replace(day=1)
+    ultimo_dia_mes_passado = primeiro_dia_mes_atual - timedelta(days=1)
+    
+    # Estatísticas do mês atual
+    stats_mes_atual = db.get_estatisticas_gerais(
+        id_conta=id_conta_filtro,
+        data_inicio=primeiro_dia_mes_atual.strftime("%Y-%m-%d"),
+        data_fim=hoje.strftime("%Y-%m-%d")
+    )
+    
+    # Estatísticas do mês passado
+    stats_mes_passado = db.get_estatisticas_gerais(
+        id_conta=id_conta_filtro,
+        data_inicio=primeiro_dia_mes_passado.strftime("%Y-%m-%d"),
+        data_fim=ultimo_dia_mes_passado.strftime("%Y-%m-%d")
+    )
+    
+    # Seção de comparação temporal
+    st.markdown("### 📊 Comparação Temporal (Este Mês vs Mês Passado)")
+    col_temp1, col_temp2, col_temp3, col_temp4 = st.columns(4)
+    
+    with col_temp1:
+        lucro_atual = stats_mes_atual['lucro_liquido']
+        lucro_passado = stats_mes_passado['lucro_liquido']
+        delta_lucro = lucro_atual - lucro_passado
+        st.metric(
+            "💰 Lucro do Mês",
+            f"R$ {lucro_atual:.2f}",
+            delta=f"R$ {delta_lucro:.2f}"
+        )
+    
+    with col_temp2:
+        roi_atual = stats_mes_atual['roi_geral']
+        roi_passado = stats_mes_passado['roi_geral']
+        delta_roi = roi_atual - roi_passado
+        st.metric(
+            "📊 ROI do Mês",
+            f"{roi_atual:.1f}%",
+            delta=f"{delta_roi:.1f}%"
+        )
+    
+    with col_temp3:
+        torneios_atual = stats_mes_atual['total_torneios']
+        torneios_passado = stats_mes_passado['total_torneios']
+        delta_torneios = torneios_atual - torneios_passado
+        st.metric(
+            "🎯 Torneios do Mês",
+            f"{torneios_atual}",
+            delta=f"{delta_torneios}"
+        )
+    
+    with col_temp4:
+        itm_atual = stats_mes_atual['itm_percentage']
+        itm_passado = stats_mes_passado['itm_percentage']
+        delta_itm = itm_atual - itm_passado
+        st.metric(
+            "💎 ITM do Mês",
+            f"{itm_atual:.1f}%",
+            delta=f"{delta_itm:.1f}%"
+        )
+    
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -517,9 +582,64 @@ if torneios:
     df_display['Lucro (R$)'] = df_display['Lucro (R$)'].apply(lambda x: f"R$ {x:.2f}")
     df_display['ROI (%)'] = df_display['ROI (%)'].apply(lambda x: f"{x:.1f}%")
     
-    # Mostrar apenas os 20 mais recentes com dataframe bonito
+    # Determinar número de itens por página
+    itens_por_pagina = 20
+    total_torneios = len(df_display)
+    
+    # Paginação
+    if total_torneios > itens_por_pagina:
+        st.markdown("### 📄 Paginação")
+        total_paginas = (total_torneios - 1) // itens_por_pagina + 1
+        
+        col_pag1, col_pag2, col_pag3 = st.columns([2, 2, 6])
+        with col_pag1:
+            pagina_atual = st.number_input(
+                "Página", 
+                min_value=1, 
+                max_value=total_paginas, 
+                value=1, 
+                step=1,
+                key="pagina_torneios"
+            )
+        with col_pag2:
+            st.write(f"de {total_paginas} páginas")
+        
+        # Calcular slice
+        inicio = (pagina_atual - 1) * itens_por_pagina
+        fim = min(inicio + itens_por_pagina, total_torneios)
+        df_display = df_display.iloc[inicio:fim]
+    else:
+        df_display = df_display.head(20)
+    
+    # Aplicar cores baseadas no lucro para melhor visualização
+    def colorir_lucro(val):
+        if 'R$' in str(val):
+            valor = float(str(val).replace('R$', '').replace(',', '.').strip())
+            if valor > 0:
+                return 'background-color: #d4edda; color: #155724'  # Verde claro
+            elif valor < 0:
+                return 'background-color: #f8d7da; color: #721c24'  # Vermelho claro
+        return ''
+    
+    def colorir_roi(val):
+        if '%' in str(val):
+            valor = float(str(val).replace('%', '').strip())
+            if valor > 0:
+                return 'background-color: #d4edda; color: #155724'  # Verde claro
+            elif valor < 0:
+                return 'background-color: #f8d7da; color: #721c24'  # Vermelho claro
+        return ''
+    
+    # Aplicar estilos
+    styled_df = df_display.style.applymap(
+        colorir_lucro, subset=['Lucro (R$)']
+    ).applymap(
+        colorir_roi, subset=['ROI (%)']
+    )
+    
+    # Mostrar dataframe com cores
     st.dataframe(
-        df_display.head(20),
+        styled_df,
         use_container_width=True,
         hide_index=True
     )
@@ -527,21 +647,31 @@ if torneios:
     # Seção de ações rápidas para torneios
     st.markdown("### ⚡ Ações Rápidas")
     
-    # Dropdown para seleção de torneio
-    torneios_opcoes = []
-    for i, torneio in enumerate(torneios[:20]):  # Apenas os 20 mais recentes
-        opcao = f"{torneio['data_torneio']} - {torneio['nome_conta']} - {torneio['nome_tipo']} - R$ {torneio['buy_in']:.2f}"
-        torneios_opcoes.append(opcao)
+    # Tabs para ação individual vs ação em lote
+    tab1, tab2 = st.tabs(["🎯 Ação Individual", "📦 Ação em Lote"])
     
-    if torneios_opcoes:
-        col1, col2, col3 = st.columns([6, 2, 2])
+    with tab1:
+        # Dropdown para seleção de torneio
+        torneios_opcoes = []
+        inicio_pagina = 0
+        if 'pagina_torneios' in st.session_state and total_torneios > itens_por_pagina:
+            inicio_pagina = (st.session_state['pagina_torneios'] - 1) * itens_por_pagina
         
-        with col1:
-            torneio_selecionado = st.selectbox(
-                "Selecione um torneio para editar ou excluir:",
-                torneios_opcoes,
-                key="torneio_acao"
-            )
+        torneios_pagina = torneios[inicio_pagina:inicio_pagina + itens_por_pagina]
+        
+        for i, torneio in enumerate(torneios_pagina):
+            opcao = f"{torneio['data_torneio']} - {torneio['nome_conta']} - {torneio['nome_tipo']} - R$ {torneio['buy_in']:.2f}"
+            torneios_opcoes.append(opcao)
+        
+        if torneios_opcoes:
+            col1, col2, col3 = st.columns([6, 2, 2])
+            
+            with col1:
+                torneio_selecionado = st.selectbox(
+                    "Selecione um torneio para editar ou excluir:",
+                    torneios_opcoes,
+                    key="torneio_acao"
+                )
         
         with col2:
             if st.button("✏️ Editar", use_container_width=True):
@@ -557,14 +687,163 @@ if torneios:
         
         with col3:
             if st.button("🗑️ Excluir", use_container_width=True):
-                idx_selecionado = torneios_opcoes.index(torneio_selecionado)
-                torneio_dados = torneios[idx_selecionado]
-                sucesso_exclusao = db.delete_torneio(torneio_dados['id_torneio'])
-                if sucesso_exclusao:
-                    st.success("✅ Torneio excluído com sucesso!")
+                st.session_state['confirmar_exclusao'] = torneio_selecionado
+                st.rerun()
+        
+        # Popup de confirmação de exclusão
+        if 'confirmar_exclusao' in st.session_state:
+            st.error("⚠️ **Confirmação de Exclusão**")
+            st.write(f"Tem certeza que deseja excluir o torneio:")
+            st.write(f"**{st.session_state['confirmar_exclusao']}**")
+            
+            col_sim, col_nao = st.columns(2)
+            with col_sim:
+                if st.button("✅ Sim, excluir", use_container_width=True):
+                    idx_selecionado = torneios_opcoes.index(st.session_state['confirmar_exclusao'])
+                    torneio_dados = torneios[idx_selecionado]
+                    sucesso_exclusao = db.delete_torneio(torneio_dados['id_torneio'])
+                    if sucesso_exclusao:
+                        st.success("✅ Torneio excluído com sucesso!")
+                        del st.session_state['confirmar_exclusao']
+                        st.rerun()
+                    else:
+                        st.error("❌ Erro ao excluir torneio!")
+            
+            with col_nao:
+                                 if st.button("❌ Cancelar", use_container_width=True):
+                     del st.session_state['confirmar_exclusao']
+                     st.rerun()
+    
+    with tab2:
+        st.markdown("**Selecione múltiplos torneios para ações em lote:**")
+        
+        # Criar checkboxes para seleção múltipla
+        if 'torneios_selecionados' not in st.session_state:
+            st.session_state['torneios_selecionados'] = []
+        
+        col_sel1, col_sel2, col_sel3 = st.columns([8, 2, 2])
+        
+        with col_sel1:
+            todos_marcados = st.checkbox("🔲 Selecionar/Desmarcar todos da página", key="todos_checkbox")
+            
+        with col_sel2:
+            if st.button("✏️ Editar Lote", use_container_width=True, disabled=len(st.session_state['torneios_selecionados']) == 0):
+                st.session_state['modo_edicao_lote'] = True
+                st.rerun()
+                
+        with col_sel3:
+            if st.button("🗑️ Excluir Lote", use_container_width=True, disabled=len(st.session_state['torneios_selecionados']) == 0):
+                st.session_state['confirmar_exclusao_lote'] = True
+                st.rerun()
+        
+        # Lista de checkboxes para torneios
+        for i, torneio in enumerate(torneios_pagina):
+            torneio_id = torneio['id_torneio']
+            opcao_checkbox = f"{torneio['data_torneio']} - {torneio['nome_conta']} - {torneio['nome_tipo']} - R$ {torneio['buy_in']:.2f}"
+            
+            # Controlar estado do checkbox
+            if todos_marcados:
+                if torneio_id not in st.session_state['torneios_selecionados']:
+                    st.session_state['torneios_selecionados'].append(torneio_id)
+                marcado = True
+            else:
+                marcado = torneio_id in st.session_state['torneios_selecionados']
+            
+            checkbox_alterado = st.checkbox(opcao_checkbox, value=marcado, key=f"checkbox_{torneio_id}")
+            
+            # Atualizar lista baseado no checkbox
+            if checkbox_alterado and torneio_id not in st.session_state['torneios_selecionados']:
+                st.session_state['torneios_selecionados'].append(torneio_id)
+            elif not checkbox_alterado and torneio_id in st.session_state['torneios_selecionados']:
+                st.session_state['torneios_selecionados'].remove(torneio_id)
+        
+        # Confirmação de exclusão em lote
+        if 'confirmar_exclusao_lote' in st.session_state:
+            st.error("⚠️ **Confirmação de Exclusão em Lote**")
+            st.write(f"Tem certeza que deseja excluir **{len(st.session_state['torneios_selecionados'])}** torneios selecionados?")
+            
+            col_sim_lote, col_nao_lote = st.columns(2)
+            with col_sim_lote:
+                if st.button("✅ Sim, excluir todos", use_container_width=True):
+                    sucessos = 0
+                    for torneio_id in st.session_state['torneios_selecionados']:
+                        if db.delete_torneio(torneio_id):
+                            sucessos += 1
+                    
+                    st.success(f"✅ {sucessos} torneios excluídos com sucesso!")
+                    st.session_state['torneios_selecionados'] = []
+                    del st.session_state['confirmar_exclusao_lote']
                     st.rerun()
-                else:
-                    st.error("❌ Erro ao excluir torneio!")
+            
+            with col_nao_lote:
+                if st.button("❌ Cancelar", use_container_width=True):
+                    del st.session_state['confirmar_exclusao_lote']
+                    st.rerun()
+        
+        # Modo de edição em lote
+        if 'modo_edicao_lote' in st.session_state:
+            st.markdown("### ✏️ Edição em Lote")
+            st.write(f"Editando **{len(st.session_state['torneios_selecionados'])}** torneios selecionados")
+            
+            with st.form("edicao_lote_form"):
+                st.write("**Campos que deseja alterar (deixe em branco para não alterar):**")
+                
+                col_lote1, col_lote2 = st.columns(2)
+                
+                with col_lote1:
+                    alterar_data = st.checkbox("Alterar Data")
+                    if alterar_data:
+                        nova_data = st.date_input("Nova Data")
+                    
+                    alterar_conta = st.checkbox("Alterar Conta")
+                    if alterar_conta:
+                        nova_conta = st.selectbox("Nova Conta", [c["nome"] for c in contas])
+                    
+                    alterar_tipo = st.checkbox("Alterar Tipo")
+                    if alterar_tipo:
+                        novo_tipo = st.selectbox("Novo Tipo", [t["nome"] for t in tipos_torneio])
+                
+                with col_lote2:
+                    alterar_buyin = st.checkbox("Alterar Buy-in")
+                    if alterar_buyin:
+                        novo_buyin = st.number_input("Novo Buy-in (R$)", min_value=0.0, step=0.01)
+                    
+                    alterar_ganho = st.checkbox("Alterar Ganho")
+                    if alterar_ganho:
+                        novo_ganho = st.number_input("Novo Ganho (R$)", min_value=0.0, step=0.01)
+                
+                col_save_lote, col_cancel_lote = st.columns(2)
+                
+                with col_save_lote:
+                    salvar_lote = st.form_submit_button("💾 Salvar Alterações em Lote", use_container_width=True)
+                
+                with col_cancel_lote:
+                    cancelar_lote = st.form_submit_button("❌ Cancelar", use_container_width=True)
+                
+                if salvar_lote:
+                    sucessos = 0
+                    for torneio_id in st.session_state['torneios_selecionados']:
+                        # Buscar dados atuais do torneio
+                        torneio_atual = next((t for t in torneios if t['id_torneio'] == torneio_id), None)
+                        if torneio_atual:
+                            # Usar novos valores ou manter os atuais
+                            data_final = nova_data.strftime("%Y-%m-%d") if alterar_data else torneio_atual['data_torneio']
+                            conta_final = next(c["id"] for c in contas if c["nome"] == nova_conta) if alterar_conta else next(c["id"] for c in contas if c["nome"] == torneio_atual['nome_conta'])
+                            tipo_final = next(t["id"] for t in tipos_torneio if t["nome"] == novo_tipo) if alterar_tipo else next(t["id"] for t in tipos_torneio if t["nome"] == torneio_atual['nome_tipo'])
+                            buyin_final = novo_buyin if alterar_buyin else torneio_atual['buy_in']
+                            ganho_final = novo_ganho if alterar_ganho else torneio_atual['ganho_total']
+                            
+                            if db.update_torneio(torneio_id, data_final, conta_final, tipo_final, buyin_final, ganho_final):
+                                sucessos += 1
+                    
+                    st.success(f"✅ {sucessos} torneios atualizados com sucesso!")
+                    st.session_state['torneios_selecionados'] = []
+                    del st.session_state['modo_edicao_lote']
+                    st.rerun()
+                
+                if cancelar_lote:
+                    del st.session_state['modo_edicao_lote']
+                    st.rerun()
     
     # Formulário de edição (quando um torneio é selecionado para edição)
     if 'edit_id' in st.session_state:
