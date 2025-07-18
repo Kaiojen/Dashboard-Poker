@@ -588,21 +588,18 @@ if torneios:
     
     # Paginação
     if total_torneios > itens_por_pagina:
-        st.markdown("### 📄 Paginação")
         total_paginas = (total_torneios - 1) // itens_por_pagina + 1
         
-        col_pag1, col_pag2, col_pag3 = st.columns([2, 2, 6])
+        col_pag1, col_pag2 = st.columns([3, 7])
         with col_pag1:
             pagina_atual = st.number_input(
-                "Página", 
+                f"Página (de {total_paginas})", 
                 min_value=1, 
                 max_value=total_paginas, 
                 value=1, 
                 step=1,
                 key="pagina_torneios"
             )
-        with col_pag2:
-            st.write(f"de {total_paginas} páginas")
         
         # Calcular slice
         inicio = (pagina_atual - 1) * itens_por_pagina
@@ -614,28 +611,39 @@ if torneios:
     # Aplicar cores baseadas no lucro para melhor visualização
     def colorir_lucro(val):
         if 'R$' in str(val):
-            valor = float(str(val).replace('R$', '').replace(',', '.').strip())
-            if valor > 0:
-                return 'background-color: #d4edda; color: #155724'  # Verde claro
-            elif valor < 0:
-                return 'background-color: #f8d7da; color: #721c24'  # Vermelho claro
+            valor_str = str(val).replace('R$', '').replace(',', '.').strip()
+            try:
+                valor = float(valor_str)
+                if valor > 0:
+                    return 'background-color: #d1f2eb; color: #0c6b40'  # Verde mais suave
+                elif valor < 0:
+                    return 'background-color: #fadbd8; color: #943126'  # Vermelho mais suave
+            except ValueError:
+                pass
         return ''
     
     def colorir_roi(val):
         if '%' in str(val):
-            valor = float(str(val).replace('%', '').strip())
-            if valor > 0:
-                return 'background-color: #d4edda; color: #155724'  # Verde claro
-            elif valor < 0:
-                return 'background-color: #f8d7da; color: #721c24'  # Vermelho claro
+            valor_str = str(val).replace('%', '').strip()
+            try:
+                valor = float(valor_str)
+                if valor > 0:
+                    return 'background-color: #d1f2eb; color: #0c6b40'  # Verde mais suave
+                elif valor < 0:
+                    return 'background-color: #fadbd8; color: #943126'  # Vermelho mais suave
+            except ValueError:
+                pass
         return ''
     
-    # Aplicar estilos
-    styled_df = df_display.style.applymap(
-        colorir_lucro, subset=['Lucro (R$)']
-    ).applymap(
-        colorir_roi, subset=['ROI (%)']
-    )
+    # Aplicar estilos apenas se há dados
+    if not df_display.empty:
+        styled_df = df_display.style.applymap(
+            colorir_lucro, subset=['Lucro (R$)']
+        ).applymap(
+            colorir_roi, subset=['ROI (%)']
+        )
+    else:
+        styled_df = df_display
     
     # Mostrar dataframe com cores
     st.dataframe(
