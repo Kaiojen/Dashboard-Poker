@@ -3,14 +3,27 @@ import os
 from datetime import datetime
 from typing import List, Dict, Optional, Tuple
 
+from dotenv import load_dotenv
+import psycopg2
+
 class PokerDatabase:
     def __init__(self, db_path: str = "poker_dashboard.db"):
+        load_dotenv()
+        self.db_url = os.getenv("DATABASE_URL")
         self.db_path = db_path
         self.init_database()
-    
+
     def get_connection(self):
         """Cria uma conexão com o banco de dados."""
+        if self.db_url:
+            return psycopg2.connect(self.db_url)
         return sqlite3.connect(self.db_path)
+
+    def _execute(self, cursor, query: str, params: Tuple = ()):
+        """Executa query adaptando placeholders para o banco configurado."""
+        if self.db_url:
+            query = query.replace("?", "%s")
+        cursor.execute(query, params)
     
     def init_database(self):
         """Inicializa o banco de dados com as tabelas necessárias."""
@@ -70,8 +83,8 @@ class PokerDatabase:
         ]
         
         for nome_conta, email in contas_iniciais:
-            cursor.execute('''
-                INSERT OR IGNORE INTO contas (nome_conta, email) 
+            self._execute(cursor, '''
+                INSERT OR IGNORE INTO contas (nome_conta, email)
                 VALUES (?, ?)
             ''', (nome_conta, email))
         
@@ -79,8 +92,8 @@ class PokerDatabase:
         tipos_torneio_iniciais = ["Mystery", "Battle", "Plus", "Reentry", "Freeze", "Bounty"]
         
         for tipo in tipos_torneio_iniciais:
-            cursor.execute('''
-                INSERT OR IGNORE INTO tipos_torneio (nome_tipo) 
+            self._execute(cursor, '''
+                INSERT OR IGNORE INTO tipos_torneio (nome_tipo)
                 VALUES (?)
             ''', (tipo,))
         
@@ -118,7 +131,7 @@ class PokerDatabase:
             conn = self.get_connection()
             cursor = conn.cursor()
             
-            cursor.execute('''
+            self._execute(cursor, '''
                 INSERT INTO torneios (data_torneio, id_conta, id_tipo_torneio, buy_in, ganho_total)
                 VALUES (?, ?, ?, ?, ?)
             ''', (data_torneio, id_conta, id_tipo_torneio, buy_in, ganho_total))
@@ -172,7 +185,7 @@ class PokerDatabase:
         
         query += " ORDER BY t.data_torneio DESC"
         
-        cursor.execute(query, params)
+        self._execute(cursor, query, tuple(params))
         rows = cursor.fetchall()
         
         conn.close()
@@ -225,7 +238,7 @@ class PokerDatabase:
             query += " AND t.data_torneio <= ?"
             params.append(data_fim)
         
-        cursor.execute(query, params)
+        self._execute(cursor, query, tuple(params))
         row = cursor.fetchone()
         
         conn.close()
@@ -291,7 +304,7 @@ class PokerDatabase:
         
         query += " GROUP BY tt.nome_tipo ORDER BY lucro_liquido DESC"
         
-        cursor.execute(query, params)
+        self._execute(cursor, query, tuple(params))
         rows = cursor.fetchall()
         
         conn.close()
@@ -323,7 +336,7 @@ class PokerDatabase:
             conn = self.get_connection()
             cursor = conn.cursor()
             
-            cursor.execute("DELETE FROM torneios WHERE id_torneio = ?", (id_torneio,))
+            self._execute(cursor, "DELETE FROM torneios WHERE id_torneio = ?", (id_torneio,))
             
             conn.commit()
             conn.close()
@@ -337,7 +350,7 @@ class PokerDatabase:
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
-            cursor.execute('''
+            self._execute(cursor, '''
                 UPDATE torneios
                 SET data_torneio = ?, id_conta = ?, id_tipo_torneio = ?, buy_in = ?, ganho_total = ?
                 WHERE id_torneio = ?

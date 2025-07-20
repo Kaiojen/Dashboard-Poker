@@ -48,6 +48,22 @@ Ou utilize o script:
 
 Coloque seus testes automatizados na pasta `tests/`.
 
+## Banco de Dados Externo
+
+O aplicativo utiliza SQLite por padrão. Em ambientes como o Streamlit Cloud o
+arquivo local é apagado a cada reinicialização. Para manter os dados de forma
+persistente, crie um banco PostgreSQL gratuito (por exemplo, no [ElephantSQL](https://www.elephantsql.com/)).
+
+1. Crie uma instância gratuita e copie a URL de conexão.
+2. Defina a variável de ambiente `DATABASE_URL` com essa URL.
+3. Reinstale as dependências (`pip install -r requirements.txt`) e execute o aplicativo normalmente.
+
+Exemplo de variável:
+
+```bash
+export DATABASE_URL="postgresql://usuario:senha@servidor:5432/banco"
+```
+
 ---
 
 > Estrutura organizada seguindo boas práticas para facilitar manutenção e escalabilidade.
